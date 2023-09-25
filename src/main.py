@@ -3,12 +3,14 @@
 import sys, gi, os, logging
 
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gio, Pango
+from gi.repository import Gtk, Gio, Pango, Gdk
 
 
 XDG_DATA_DIRS = [ os.getenv('XDG_DATA_HOME') ] + \
         os.getenv('XDG_DATA_DIRS').split(':')
 XDG_APPLICATION_DIRS = filter(os.path.isdir, [f"{directory}/applications" for directory in XDG_DATA_DIRS])
+GDK_DISPLAY = Gdk.Display.get_default()
+ICON_THEME = Gtk.IconTheme.get_for_display(GDK_DISPLAY)
 
 
 def parse_desktop_file(file):
@@ -54,8 +56,18 @@ def get_desktop_entries():
 def make_button(entry):
     path, config = entry
     
+    if 'Icon' in config['[Desktop Entry]']:
+        icon_name = config['[Desktop Entry]']['Icon']
+        logging.debug(f"Entry {path} has icon: {icon_name}")
+    else:
+        icon_name = ""
+        logging.warning(f"Entry has no icon: {path}")
+
+    icon = ICON_THEME.lookup_icon(icon_name, None, 512, 1, Gtk.TextDirection.NONE, 0)
+    icon_path = icon.get_file().get_path()
+
     image = Gtk.Image()
-    image.set_from_file("image.png")
+    image.set_from_file(icon_path)
     image.set_property("hexpand", True)
     image.set_property("vexpand", True)
 
