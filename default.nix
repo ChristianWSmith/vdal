@@ -1,6 +1,6 @@
 { pkgs ? import <nixpkgs> {}
 , shell ? false
-, vdal-version ? "0.0.1"
+, version ? "0.0.1"
 }:
 
 with pkgs;
@@ -9,6 +9,7 @@ with pkgs.lib;
 stdenv.mkDerivation rec {
 
   name = "vdal";
+  inherit version;
 
   buildInputs = [
     python311
