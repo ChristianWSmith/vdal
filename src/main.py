@@ -8,21 +8,24 @@ from gi.repository import Gtk, Gio, Pango
 
 XDG_DATA_DIRS = [ os.getenv('XDG_DATA_HOME') ] + \
         os.getenv('XDG_DATA_DIRS').split(':')
-XDG_APPLICATION_DIRS = [f"{directory}/applications" for directory in XDG_DATA_DIRS]
+XDG_APPLICATION_DIRS = filter(os.path.isdir, [f"{directory}/applications" for directory in XDG_DATA_DIRS])
 
 
 def parse_desktop_file(file):
-    config = {}
-    current_section = None
+    current_section = '[Desktop Entry]'
+    config = {current_section: {}}
     for line in [line.strip() for line in open(file, 'r').readlines()]:
-        if line.startswith('[') and line.endswith(']'):
-            current_section = line
-            config[current_section] = {}
-        else:
-            tokens = line.split('=')
-            key = tokens[0]
-            value = '='.join(tokens[1:])
-            config[current_section][key] = value
+        try:
+            if line.startswith('[') and line.endswith(']'):
+                current_section = line
+                config[current_section] = {}
+            else:
+                tokens = line.split('=')
+                key = tokens[0]
+                value = '='.join(tokens[1:])
+                config[current_section][key] = value
+        except Exception as e:
+            logging.error(f"Failed to parse desktop file: {file}", e)
     return config
 
 
@@ -31,8 +34,8 @@ def get_desktop_entries():
         return file.endswith(".desktop")
     entries = {}
     for directory in XDG_APPLICATION_DIRS:
-        try:
-            for entry in filter(is_desktop_file, os.listdir(directory)):
+        for entry in filter(is_desktop_file, os.listdir(directory)):
+            try:
                 if entry not in entries:
                     config = parse_desktop_file(f"{directory}/{entry}")
                     if 'NoDisplay' in config['[Desktop Entry]'] and config['[Desktop Entry]']['NoDisplay'] == "true":
@@ -43,8 +46,8 @@ def get_desktop_entries():
                         entries[entry] = (f"{directory}/{entry}", config)
                 else:
                     logging.debug(f"Already have: {entry}")
-        except:
-            pass
+            except Exception as e:
+                logging.error(f"Failed to create entry: {entry}", e)
     return list(entries.values())
 
 
