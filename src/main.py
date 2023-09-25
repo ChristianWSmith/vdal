@@ -40,7 +40,7 @@ def get_desktop_entries():
                     config = parse_desktop_file(f"{directory}/{entry}")
                     if 'NoDisplay' in config['[Desktop Entry]'] and config['[Desktop Entry]']['NoDisplay'] == "true":
                         logging.debug(f"NoDisplay: {entry}")
-                    elif 'Hidden' in config['[Desktop Entry]'] and config['[Desktop Entry]']['Hidden'] == true:
+                    elif 'Hidden' in config['[Desktop Entry]'] and config['[Desktop Entry]']['Hidden'] == "true":
                         logging.debug(f"Hidden: {entry}")
                     else:
                         entries[entry] = (f"{directory}/{entry}", config)
