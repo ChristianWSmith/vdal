@@ -1,3 +1,13 @@
+# To install:
+#
+# # flake.nix
+# inputs = {
+#   vdal.url = "github:ChristianWSmith/vdal";
+# };
+#
+# # Reference the package like this:
+# inputs.vdal.defaultPackage.x86_64-linux
+
 {
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
@@ -7,7 +17,6 @@
         packages = 
           with import nixpkgs { inherit system; };
           (pkgs.callPackage ./default.nix {});
-        # vdal.override { version = ./.; };
         defaultPackage = self.packages.${system};
       }
     );
