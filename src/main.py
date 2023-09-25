@@ -52,17 +52,34 @@ def get_desktop_entries():
 
 
 def make_button(entry):
+    path, config = entry
+    
+    image = Gtk.Image()
+    image.set_from_file("image.png")
+    image.set_property("hexpand", True)
+    image.set_property("vexpand", True)
+
+    label = Gtk.Label(label=config['[Desktop Entry]']['Name'])
+    label.set_property("ellipsize", Pango.EllipsizeMode.END)
+    label.set_property("max-width-chars", 8)
+    
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    box.append(image)
+    box.append(label)
+    box.set_property("hexpand", True)
+    box.set_property("vexpand", True)
+    
     def on_button_clicked(widget):
         logging.debug(config['[Desktop Entry]']['Exec'])
-    path, config = entry
-    button = Gtk.Button(label=config['[Desktop Entry]']['Name'])
+
+    button = Gtk.Button()
+    button.set_child(box) 
     button.connect("clicked", on_button_clicked)
     button.set_property("width-request", 100)
     button.set_property("height-request", 100)
     button.set_property("hexpand", False)
     button.set_property("vexpand", False)
-    button.get_child().set_property("ellipsize", Pango.EllipsizeMode.END)
-    button.get_child().set_property("max-width-chars", 8)
+    
     return button
 
 
