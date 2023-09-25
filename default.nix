@@ -12,12 +12,21 @@ stdenv.mkDerivation rec {
   inherit version;
 
   buildInputs = [
-    python311
+    libportal-gtk4
+    python3Full
   ]
   ++ optionals shell (
     [ # Development shell dependencies
     ]
   );
+
+  nativeBuildInputs = [
+    gobject-introspection
+  ];
+
+  propagatedBuildInputs = with python3Packages; [
+    pygobject3
+  ];
 
   src = if shell then null else ./src;
 
