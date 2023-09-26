@@ -1,17 +1,86 @@
 #!/usr/bin/env python
 
-import sys, gi, os, logging
+import sys, gi, os, logging, json
 
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio, Pango, Gdk, GdkPixbuf, GLib
 
-
+VDAL_CACHE_DIR = f"{os.getenv('XDG_CACHE_HOME')}/vdal"
+ICON_CACHE_PATH = f"{VDAL_CACHE_DIR}/icons.json"
+os.makedirs(VDAL_CACHE_DIR, mode=0o755, exist_ok=True)
 XDG_DATA_DIRS = [ os.getenv('XDG_DATA_HOME') ] + \
         os.getenv('XDG_DATA_DIRS').split(':')
 XDG_APPLICATION_DIRS = filter(os.path.isdir, [f"{directory}/applications" for directory in XDG_DATA_DIRS])
 XDG_ICON_DIRS = list(filter(os.path.isdir, [f"{directory}/icons" for directory in XDG_DATA_DIRS]))
 GDK_DISPLAY = Gdk.Display.get_default()
 ICON_THEME = Gtk.IconTheme.get_for_display(GDK_DISPLAY)
+ICON_SIZE_DIRS_ORDERED = [
+    'scalable',
+    '512', '512x512', 
+    '256', '256x256', 
+    '192', '192x192',
+    '128', '128x28',
+    '96', '96x96',
+    '72', '72x72',
+    '64', '64x64',
+    '48', '48x48',
+    '36', '36x36',
+    '32', '32x32',
+    '24', '24x24',
+    '22', '22x22',
+    '16', '16x16',
+    'symbolic'
+    ]
+ICON_SIZE_DIRS = set(ICON_SIZE_DIRS_ORDERED)
+
+
+def order_icon_size_dir(dirs):
+    out = []
+    for icon_size_dir in ICON_SIZE_DIRS_ORDERED:
+        if icon_size_dir in dirs:
+            out.append(icon_size_dir)
+            dirs.remove(icon_size_dir)
+            if len(dirs) == 0:
+                break
+    return out + dirs
+
+
+def walk(top, below_size_dir=False):
+    dirs = []
+    nondirs = []
+    walk_dirs = []
+    try:
+        scandir_it = os.scandir(top)
+    except OSError as error:
+        return
+    with scandir_it:
+        while True:
+            try:
+                try:
+                    entry = next(scandir_it)
+                except StopIteration:
+                    break
+            except OSError as error:
+                return
+            try:
+                is_dir = entry.is_dir()
+            except OSError:
+                is_dir = False
+
+            if is_dir:
+                dirs.append(entry.name)
+            else:
+                nondirs.append(entry.name)
+    yield top, dirs, nondirs
+
+    # Recurse into sub-directories
+    islink, join = os.path.islink, os.path.join
+    if not below_size_dir and len(set(dirs).intersection(ICON_SIZE_DIRS)) != 0:
+        below_size_dir = True
+        dirs = order_icon_size_dir(dirs)
+    for dirname in dirs:
+        new_path = join(top, dirname)
+        yield from walk(new_path, below_size_dir)
 
 
 def get_icon_name_from_desktop_entry(entry):
@@ -26,13 +95,24 @@ def get_icon_name_from_desktop_entry(entry):
 
 
 def get_icons(desktop_entries):
-    icons = {}
+    if os.path.isfile(ICON_CACHE_PATH):
+        icons = json.loads(open(ICON_CACHE_PATH, "r").read())
+        cache_stale = False
+    else:
+        icons = {}
+        cache_stale = True
+
     requested_icons = set()
     for desktop_entry in desktop_entries:
         icon_name = get_icon_name_from_desktop_entry(desktop_entry)
-        icons[icon_name] = ""
+        if icon_name not in icons:
+            icons[icon_name] = ""
+            cache_stale = True
         requested_icons.add(icon_name)
     requested_icons.remove('')
+
+    if not cache_stale:
+        return icons
 
     theme_name = ICON_THEME.get_theme_name()
     theme_dirs = []
@@ -54,8 +134,7 @@ def get_icons(desktop_entries):
     icon_dirs = theme_dirs + hicolor_dirs  + default_dirs + other_dirs
 
     for icon_dir in icon_dirs:
-        # TODO: walk smarter
-        for root, dirs, files in os.walk(icon_dir, topdown=True, followlinks=True):
+        for root, dirs, files in walk(icon_dir):
             for name in files:
                 icon_name = '.'.join(name.split('.')[:-1])
                 if icon_name in requested_icons:
@@ -63,8 +142,10 @@ def get_icons(desktop_entries):
                     path = os.path.join(root, name)
                     icons[icon_name] = path
                     if len(requested_icons) == 0:
+                        open(ICON_CACHE_PATH, "w").write(json.dumps(icons))
                         return icons
 
+    open(ICON_CACHE_PATH, "w").write(json.dumps(icons))
     return icons
 
 
@@ -198,6 +279,7 @@ class VdalApplication(Gtk.Application):
 
 
 def setup_logging():
+    return
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(sys.stdout)
