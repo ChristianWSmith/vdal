@@ -1,15 +1,17 @@
 { pkgs ? import <nixpkgs> {}
 , shell ? false
-, version ? "0.0.2"
+, version ? "0.0.3"
 }:
 
 with pkgs;
 with pkgs.lib;
 
-stdenv.mkDerivation rec {
+python3Packages.buildPythonApplication rec {
 
   name = "vdal";
   inherit version;
+
+  format = "other";
 
   buildInputs = [
     libportal-gtk4
@@ -22,6 +24,7 @@ stdenv.mkDerivation rec {
   );
 
   nativeBuildInputs = [
+    wrapGAppsHook
     glib
     gobject-introspection
   ];
@@ -36,6 +39,13 @@ stdenv.mkDerivation rec {
     mkdir -p $out/bin
     cp $src/main.py $out/bin/vdal
     chmod +x $out/bin/vdal
+  '';
+
+    postInstall = ''
+    gappsWrapperArgs+=(
+      "--prefix" "PYTHONPATH" : "${python3Packages.makePythonPath propagatedBuildInputs}"
+      "--set" "PYTHONNOUSERSITE" "1"
+    )
   '';
 
   meta = {
