@@ -41,7 +41,7 @@ python3Packages.buildPythonApplication rec {
     chmod +x $out/bin/vdal
   '';
 
-    postInstall = ''
+  postInstall = ''
     gappsWrapperArgs+=(
       "--prefix" "PYTHONPATH" : "${python3Packages.makePythonPath propagatedBuildInputs}"
       "--set" "PYTHONNOUSERSITE" "1"
