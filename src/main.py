@@ -136,6 +136,7 @@ def make_button(entry, icons):
     
     def on_button_clicked(widget):
         logging.debug(f"gio launch {path}")
+        os.system(f"gio launch {path} & disown")
 
     button = Gtk.Button()
     button.set_child(box) 
