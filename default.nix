@@ -1,6 +1,6 @@
 { pkgs ? import <nixpkgs> {}
 , shell ? false
-, version ? "0.0.3"
+, version ? "0.0.4"
 }:
 
 with pkgs;
@@ -30,6 +30,7 @@ python3Packages.buildPythonApplication rec {
   ];
 
   propagatedBuildInputs = with python3Packages; [
+    cairosvg
     pygobject3
   ];
 
@@ -38,7 +39,9 @@ python3Packages.buildPythonApplication rec {
   installPhase = ''
     mkdir -p $out/bin
     cp $src/main.py $out/bin/vdal
+    cp $src/scrub_cache.py $out/bin/vdal-scrub-cache
     chmod +x $out/bin/vdal
+    chmod +x $out/bin/vdal-scrub-cache
   '';
 
   postInstall = ''

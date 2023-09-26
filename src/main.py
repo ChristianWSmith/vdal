@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 
-import sys, gi, os, logging, json
+import sys, gi, os, logging, json, cairosvg
 
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio, Pango, Gdk, GdkPixbuf, GLib
 
 VDAL_CACHE_DIR = f"{os.getenv('XDG_CACHE_HOME')}/vdal"
-ICON_CACHE_PATH = f"{VDAL_CACHE_DIR}/icons.json"
 os.makedirs(VDAL_CACHE_DIR, mode=0o755, exist_ok=True)
+VDAL_CONFIG_DIR = f"{os.getenv('XDG_CONFIG_HOME')}/vdal"
+os.makedirs(VDAL_CONFIG_DIR, mode=0o755, exist_ok=True)
+ICON_PATH_CACHE_PATH = f"{VDAL_CACHE_DIR}/icon_paths.json"
 XDG_DATA_DIRS = [ os.getenv('XDG_DATA_HOME') ] + \
         os.getenv('XDG_DATA_DIRS').split(':')
 XDG_APPLICATION_DIRS = filter(os.path.isdir, [f"{directory}/applications" for directory in XDG_DATA_DIRS])
@@ -32,6 +34,7 @@ ICON_SIZE_DIRS_ORDERED = [
     'symbolic'
     ]
 ICON_SIZE_DIRS = set(ICON_SIZE_DIRS_ORDERED)
+DESKTOP_ENTRY_FIELDS = set(['Icon', 'Exec', 'Name', 'NoDisplay'])
 
 
 def order_icon_size_dir(dirs):
@@ -95,8 +98,8 @@ def get_icon_name_from_desktop_entry(entry):
 
 
 def get_icons(desktop_entries):
-    if os.path.isfile(ICON_CACHE_PATH):
-        icons = json.loads(open(ICON_CACHE_PATH, "r").read())
+    if os.path.isfile(ICON_PATH_CACHE_PATH):
+        icons = json.loads(open(ICON_PATH_CACHE_PATH, "r").read())
         cache_stale = False
     else:
         icons = {}
@@ -142,26 +145,33 @@ def get_icons(desktop_entries):
                     path = os.path.join(root, name)
                     icons[icon_name] = path
                     if len(requested_icons) == 0:
-                        open(ICON_CACHE_PATH, "w").write(json.dumps(icons))
+                        open(ICON_PATH_CACHE_PATH, "w").write(json.dumps(icons))
                         return icons
 
-    open(ICON_CACHE_PATH, "w").write(json.dumps(icons))
+    open(ICON_PATH_CACHE_PATH, "w").write(json.dumps(icons))
     return icons
 
 
 def parse_desktop_file(file):
     current_section = '[Desktop Entry]'
     config = {current_section: {}}
+    unfound_fields = DESKTOP_ENTRY_FIELDS.copy()
     for line in [line.strip() for line in open(file, 'r').readlines()]:
         try:
             if line.startswith('[') and line.endswith(']'):
+                if line != '[Desktop Entry]':
+                    break
                 current_section = line
                 config[current_section] = {}
             else:
                 tokens = line.split('=')
                 key = tokens[0]
-                value = '='.join(tokens[1:])
-                config[current_section][key] = value
+                if key in unfound_fields:
+                    unfound_fields.remove(key)
+                    value = '='.join(tokens[1:])
+                    config[current_section][key] = value
+                    if len(unfound_fields) == 0:
+                        break
         except Exception as e:
             logging.error(f"Failed to parse desktop file: {file}", e)
     return config
@@ -178,8 +188,6 @@ def get_desktop_entries():
                     config = parse_desktop_file(f"{directory}/{entry}")
                     if 'NoDisplay' in config['[Desktop Entry]'] and config['[Desktop Entry]']['NoDisplay'] == "true":
                         logging.debug(f"NoDisplay: {entry}")
-                    elif 'Hidden' in config['[Desktop Entry]'] and config['[Desktop Entry]']['Hidden'] == "true":
-                        logging.debug(f"Hidden: {entry}")
                     else:
                         entries[entry] = (f"{directory}/{entry}", config)
                 else:
@@ -198,10 +206,12 @@ def make_button(entry, icons):
     image = Gtk.Image()
 
     if icon_path.endswith(".svg"):
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_path)
-        image.set_from_pixbuf(pixbuf)
-    else:
-        image.set_from_file(icon_path)
+        cache_name = icon_path.replace('/', '.') + '.png'
+        cache_path = f"{VDAL_CACHE_DIR}/{cache_name}"
+        if not os.path.isfile(cache_path):
+            cairosvg.svg2png(url=icon_path, write_to=cache_path)
+        icon_path = cache_path
+    image.set_from_file(icon_path)
     image.set_property("hexpand", True)
     image.set_property("vexpand", True)
 
