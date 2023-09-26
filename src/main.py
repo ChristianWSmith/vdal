@@ -279,7 +279,6 @@ class VdalApplication(Gtk.Application):
 
 
 def setup_logging():
-    return
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(sys.stdout)
