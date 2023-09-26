@@ -3,14 +3,69 @@
 import sys, gi, os, logging
 
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gio, Pango, Gdk
+from gi.repository import Gtk, Gio, Pango, Gdk, GdkPixbuf, GLib
 
 
 XDG_DATA_DIRS = [ os.getenv('XDG_DATA_HOME') ] + \
         os.getenv('XDG_DATA_DIRS').split(':')
 XDG_APPLICATION_DIRS = filter(os.path.isdir, [f"{directory}/applications" for directory in XDG_DATA_DIRS])
+XDG_ICON_DIRS = list(filter(os.path.isdir, [f"{directory}/icons" for directory in XDG_DATA_DIRS]))
 GDK_DISPLAY = Gdk.Display.get_default()
 ICON_THEME = Gtk.IconTheme.get_for_display(GDK_DISPLAY)
+
+
+def get_icon_name_from_desktop_entry(entry):
+    path, config = entry
+    if 'Icon' in config['[Desktop Entry]']:
+        icon_name = config['[Desktop Entry]']['Icon']
+        logging.debug(f"Entry {path} has icon: {icon_name}")
+    else:
+        icon_name = ""
+        logging.warning(f"Entry has no icon: {path}")
+    return icon_name
+
+
+def get_icons(desktop_entries):
+    icons = {}
+    requested_icons = set()
+    for desktop_entry in desktop_entries:
+        icon_name = get_icon_name_from_desktop_entry(desktop_entry)
+        icons[icon_name] = ""
+        requested_icons.add(icon_name)
+    requested_icons.remove('')
+
+    theme_name = ICON_THEME.get_theme_name()
+    theme_dirs = []
+    hicolor_dirs = []
+    default_dirs = []
+    other_dirs = []
+
+    for path in ICON_THEME.get_search_path():
+        if path.endswith("icons"):
+            if os.path.isdir(f"{path}/{theme_name}"):
+                theme_dirs.append(f"{path}/{theme_name}")
+            if os.path.isdir(f"{path}/hicolor"):
+                hicolor_dirs.append(f"{path}/hicolor")
+            if os.path.isdir(f"{path}/default"):
+                hicolor_dirs.append(f"{path}/default")
+        else:
+            other_dirs.append(path)
+    
+    icon_dirs = theme_dirs + hicolor_dirs  + default_dirs + other_dirs
+
+    for icon_dir in icon_dirs:
+        # TODO: walk smarter
+        for root, dirs, files in os.walk(icon_dir, topdown=True, followlinks=True):
+            for name in files:
+                icon_name = '.'.join(name.split('.')[:-1])
+                if icon_name in requested_icons:
+                    requested_icons.remove(icon_name)
+                    path = os.path.join(root, name)
+                    icons[icon_name] = path
+                    if len(requested_icons) == 0:
+                        return icons
+
+    return icons
 
 
 def parse_desktop_file(file):
@@ -53,21 +108,19 @@ def get_desktop_entries():
     return list(entries.values())
 
 
-def make_button(entry):
+def make_button(entry, icons):
     path, config = entry
-    
-    if 'Icon' in config['[Desktop Entry]']:
-        icon_name = config['[Desktop Entry]']['Icon']
-        logging.debug(f"Entry {path} has icon: {icon_name}")
-    else:
-        icon_name = ""
-        logging.warning(f"Entry has no icon: {path}")
 
-    icon = ICON_THEME.lookup_icon(icon_name, None, 512, 1, Gtk.TextDirection.NONE, 0)
-    icon_path = icon.get_file().get_path()
+    icon_name = get_icon_name_from_desktop_entry(entry)
+    icon_path = icons[icon_name]
 
     image = Gtk.Image()
-    image.set_from_file(icon_path)
+
+    if icon_path.endswith(".svg"):
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_path)
+        image.set_from_pixbuf(pixbuf)
+    else:
+        image.set_from_file(icon_path)
     image.set_property("hexpand", True)
     image.set_property("vexpand", True)
 
@@ -82,7 +135,7 @@ def make_button(entry):
     box.set_property("vexpand", True)
     
     def on_button_clicked(widget):
-        logging.debug(config['[Desktop Entry]']['Exec'])
+        logging.debug(f"gio launch {path}")
 
     button = Gtk.Button()
     button.set_child(box) 
@@ -122,8 +175,10 @@ class VdalWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app)
         flow_box = make_flow_box()
-        for entry in get_desktop_entries():
-            button = make_button(entry)
+        desktop_entries = get_desktop_entries()
+        icons = get_icons(desktop_entries)
+        for entry in desktop_entries:
+            button = make_button(entry, icons)
             flow_box.append(button)
         box = make_box()
         box.append(flow_box)

@@ -13,6 +13,7 @@ stdenv.mkDerivation rec {
 
   buildInputs = [
     libportal-gtk4
+    librsvg
     python3Full
   ]
   ++ optionals shell (
@@ -21,6 +22,7 @@ stdenv.mkDerivation rec {
   );
 
   nativeBuildInputs = [
+    glib
     gobject-introspection
   ];
 
