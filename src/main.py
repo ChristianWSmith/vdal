@@ -5,11 +5,13 @@ import sys, gi, os, logging, json, cairosvg
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio, Pango, Gdk, GdkPixbuf, GLib
 
+
 VDAL_CACHE_DIR = f"{os.getenv('XDG_CACHE_HOME')}/vdal"
 os.makedirs(VDAL_CACHE_DIR, mode=0o755, exist_ok=True)
 VDAL_CONFIG_DIR = f"{os.getenv('XDG_CONFIG_HOME')}/vdal"
 os.makedirs(VDAL_CONFIG_DIR, mode=0o755, exist_ok=True)
-ICON_PATH_CACHE_PATH = f"{VDAL_CACHE_DIR}/icon_paths.json"
+VDAL_CONFIG_PATH = f"{VDAL_CONFIG_DIR}/config"
+VDAL_ICON_PATH_CACHE_PATH = f"{VDAL_CACHE_DIR}/icon_paths.json"
 XDG_DATA_DIRS = [ os.getenv('XDG_DATA_HOME') ] + \
         os.getenv('XDG_DATA_DIRS').split(':')
 XDG_APPLICATION_DIRS = filter(os.path.isdir, [f"{directory}/applications" for directory in XDG_DATA_DIRS])
@@ -35,6 +37,21 @@ ICON_SIZE_DIRS_ORDERED = [
     ]
 ICON_SIZE_DIRS = set(ICON_SIZE_DIRS_ORDERED)
 DESKTOP_ENTRY_FIELDS = set(['Icon', 'Exec', 'Name', 'NoDisplay'])
+CONFIG = {
+    "button_size": 100,
+    "gaps_in": 6,
+    "gaps_out": 12,
+    "exit_on_launch_app": True,
+}
+if os.path.isfile(VDAL_CONFIG_PATH):
+    loaded_config = json.loads(open(VDAL_CONFIG_PATH, "r").read())
+    for key, value in loaded_config.items():
+        if key in CONFIG:
+            CONFIG[key] = value
+    if not all((loaded_config.get(k) == v for k, v in CONFIG.items())):
+        open(VDAL_CONFIG_PATH, "w").write(json.dumps(CONFIG))
+else:
+    open(VDAL_CONFIG_PATH, "w").write(json.dumps(CONFIG))
 
 
 def order_icon_size_dir(dirs):
@@ -75,8 +92,6 @@ def walk(top, below_size_dir=False):
             else:
                 nondirs.append(entry.name)
     yield top, dirs, nondirs
-
-    # Recurse into sub-directories
     islink, join = os.path.islink, os.path.join
     if not below_size_dir and len(set(dirs).intersection(ICON_SIZE_DIRS)) != 0:
         below_size_dir = True
@@ -98,8 +113,8 @@ def get_icon_name_from_desktop_entry(entry):
 
 
 def get_icons(desktop_entries):
-    if os.path.isfile(ICON_PATH_CACHE_PATH):
-        icons = json.loads(open(ICON_PATH_CACHE_PATH, "r").read())
+    if os.path.isfile(VDAL_ICON_PATH_CACHE_PATH):
+        icons = json.loads(open(VDAL_ICON_PATH_CACHE_PATH, "r").read())
         cache_stale = False
     else:
         icons = {}
@@ -145,10 +160,10 @@ def get_icons(desktop_entries):
                     path = os.path.join(root, name)
                     icons[icon_name] = path
                     if len(requested_icons) == 0:
-                        open(ICON_PATH_CACHE_PATH, "w").write(json.dumps(icons))
+                        open(VDAL_ICON_PATH_CACHE_PATH, "w").write(json.dumps(icons))
                         return icons
 
-    open(ICON_PATH_CACHE_PATH, "w").write(json.dumps(icons))
+    open(VDAL_ICON_PATH_CACHE_PATH, "w").write(json.dumps(icons))
     return icons
 
 
@@ -228,12 +243,14 @@ def make_button(entry, icons):
     def on_button_clicked(widget):
         logging.debug(f"gio launch {path}")
         os.system(f"gio launch {path} & disown")
+        if CONFIG['exit_on_launch_app']:
+            quit()
 
     button = Gtk.Button()
     button.set_child(box) 
     button.connect("clicked", on_button_clicked)
-    button.set_property("width-request", 100)
-    button.set_property("height-request", 100)
+    button.set_property("width-request", CONFIG["button_size"])
+    button.set_property("height-request", CONFIG["button_size"])
     button.set_property("hexpand", False)
     button.set_property("vexpand", False)
     
@@ -249,17 +266,17 @@ def make_scrolled_window():
 def make_flow_box():
     flow_box = Gtk.FlowBox()
     flow_box.set_selection_mode(Gtk.SelectionMode.NONE)
-    flow_box.set_column_spacing(6)
-    flow_box.set_row_spacing(6)
+    flow_box.set_column_spacing(CONFIG['gaps_in'])
+    flow_box.set_row_spacing(CONFIG['gaps_in'])
     return flow_box
 
 
 def make_box():
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-    box.set_margin_start(12)
-    box.set_margin_end(12)
-    box.set_margin_top(12)
-    box.set_margin_bottom(12)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=CONFIG['gaps_out'])
+    box.set_margin_start(CONFIG['gaps_out'])
+    box.set_margin_end(CONFIG['gaps_out'])
+    box.set_margin_top(CONFIG['gaps_out'])
+    box.set_margin_bottom(CONFIG['gaps_out'])
     return box
 
 
@@ -307,4 +324,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

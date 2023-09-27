@@ -1,6 +1,6 @@
 { pkgs ? import <nixpkgs> {}
 , shell ? false
-, version ? "0.0.4"
+, version ? "0.0.5"
 }:
 
 with pkgs;
