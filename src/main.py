@@ -294,6 +294,8 @@ class VdalWindow(Gtk.ApplicationWindow):
         scrolled_window = make_scrolled_window()
         scrolled_window.set_child(box)
         self.set_child(scrolled_window)
+        self.set_title("vdal")
+        self.set_icon_name("applications-all")
 
 
 class VdalApplication(Gtk.Application):
